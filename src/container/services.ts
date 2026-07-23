@@ -5,8 +5,8 @@ import { IngestionService } from "../rag/ingestion/IngestionService";
 
 let appServices: AppContainer | null = null;
 
-export async function getAppServices(): Promise<AppContainer> {
-  if (!appServices) {
+export async function getAppServices(refresh = false): Promise<AppContainer> {
+  if (!appServices || refresh) {
     appServices = await createContainer();
   }
 

@@ -12,7 +12,7 @@ export interface ChatResponse {
   answer: string;
   sources: ChatSource[];
   meta: {
-    provider: "ollama" | "fallback";
+    provider: string;
     model?: string;
   };
 }

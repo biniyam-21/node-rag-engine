@@ -1,8 +1,7 @@
-import { OllamaEmbeddingProvider } from "../ai/implementations/ollama/OllamaEmbeddingProvider";
 import { ragConfig } from "../config/rag";
 import { paths } from "../config/paths";
 import { createChunkStrategy } from "../rag/chunking";
-import { OllamaRagChatProvider } from "../rag/chat/ChatProvider";
+import { GenericRagChatProvider } from "../rag/chat/ChatProvider";
 import { ChatService } from "../rag/chat/ChatService";
 import { IngestionService } from "../rag/ingestion/IngestionService";
 import { MarkdownLoader } from "../rag/loaders/MarkdownLoader";
@@ -11,15 +10,17 @@ import { Retriever } from "../rag/retrieval/Retriever";
 import { createVectorStore } from "../rag/vector/createVectorStore";
 import { VectorStore } from "../rag/vector/types";
 import { ContainerTypes } from "./types";
+import { createChatProvider, createEmbeddingProvider } from "../ai/providers/factory";
+import { EmbeddingProvider } from "../ai/providers/EmbeddingProvider";
 
 export interface AppContainer {
   [ContainerTypes.MarkdownLoader]: MarkdownLoader;
   [ContainerTypes.ChunkStrategy]: ReturnType<typeof createChunkStrategy>;
-  [ContainerTypes.EmbeddingProvider]: OllamaEmbeddingProvider;
+  [ContainerTypes.EmbeddingProvider]: EmbeddingProvider;
   [ContainerTypes.VectorStore]: VectorStore;
   [ContainerTypes.Retriever]: Retriever;
   [ContainerTypes.PromptBuilder]: PromptBuilder;
-  [ContainerTypes.ChatProvider]: OllamaRagChatProvider;
+  [ContainerTypes.ChatProvider]: GenericRagChatProvider;
   [ContainerTypes.ChatService]: ChatService;
   [ContainerTypes.IngestionService]: IngestionService;
 }
@@ -27,11 +28,14 @@ export interface AppContainer {
 export async function createContainer(): Promise<AppContainer> {
   const loader = new MarkdownLoader(paths.knowledge);
   const chunkStrategy = createChunkStrategy(ragConfig.chunkStrategy);
-  const embeddingProvider = new OllamaEmbeddingProvider();
   const vectorStore = await createVectorStore();
+  
+  const embeddingProvider = createEmbeddingProvider();
+  const rawChatProvider = createChatProvider();
+  
   const retriever = new Retriever(vectorStore, embeddingProvider);
+  const chatProvider = new GenericRagChatProvider(rawChatProvider);
   const promptBuilder = new PromptBuilder();
-  const chatProvider = new OllamaRagChatProvider();
   const chatService = new ChatService(retriever, promptBuilder, chatProvider);
   const ingestionService = new IngestionService(
     loader,

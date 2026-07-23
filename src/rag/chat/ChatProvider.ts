@@ -1,11 +1,12 @@
 import { aiConfig } from "../../config/ai";
 import { logger } from "../../shared/logger/logger";
-import { OllamaChatProvider } from "../../ai/implementations/ollama/OllamaChatProvider";
+import { ChatProvider } from "../../ai/providers/ChatProvider";
+import { createChatProvider } from "../../ai/providers/factory";
 import { ScoredChunk } from "../vector/types";
 
 export interface RagChatResult {
   answer: string;
-  provider: "ollama" | "fallback";
+  provider: string;
   model?: string;
 }
 
@@ -45,9 +46,9 @@ export class SimpleChatProvider implements RagChatProvider {
   }
 }
 
-export class OllamaRagChatProvider implements RagChatProvider {
+export class GenericRagChatProvider implements RagChatProvider {
   constructor(
-    private readonly chatProvider = new OllamaChatProvider(),
+    private readonly chatProvider: ChatProvider = createChatProvider(),
     private readonly fallback = new SimpleChatProvider(),
   ) {}
 
@@ -68,13 +69,13 @@ export class OllamaRagChatProvider implements RagChatProvider {
       ]);
 
       logger.info(
-        { model: response.model ?? aiConfig.chatModel },
-        "Generated chat response with Ollama",
+        { model: response.model ?? aiConfig.chatModel, provider: aiConfig.provider },
+        "Generated RAG response",
       );
 
       return {
         answer: response.message.trim(),
-        provider: "ollama",
+        provider: aiConfig.provider,
         model: response.model ?? aiConfig.chatModel,
       };
     } catch (error) {
@@ -82,13 +83,13 @@ export class OllamaRagChatProvider implements RagChatProvider {
 
       logger.error(
         { err: message, model: aiConfig.chatModel },
-        "Ollama chat failed; using fallback response",
+        "RAG Chat generation failed; using fallback response",
       );
 
-      const fallback = await this.fallback.generateResponse(question, _prompt, chunks);
+      const fallbackRes = await this.fallback.generateResponse(question, _prompt, chunks);
 
       return {
-        ...fallback,
+        ...fallbackRes,
         model: aiConfig.chatModel,
       };
     }
@@ -115,3 +116,5 @@ export class OllamaRagChatProvider implements RagChatProvider {
     ].join("\n");
   }
 }
+
+export const OllamaRagChatProvider = GenericRagChatProvider;

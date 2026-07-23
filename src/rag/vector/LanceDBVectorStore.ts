@@ -27,7 +27,9 @@ export class LanceDBVectorStore implements VectorStore {
 
   static async create(dbPath: string): Promise<LanceDBVectorStore> {
     const db = await lancedb.connect(dbPath);
-    return new LanceDBVectorStore(db);
+    const store = new LanceDBVectorStore(db);
+    await store.openTableIfExist();
+    return store;
   }
 
   async addChunk(chunk: Chunk, embedding: number[]): Promise<void> {
@@ -36,6 +38,8 @@ export class LanceDBVectorStore implements VectorStore {
   }
 
   async search(queryEmbedding: number[], options: SearchOptions = {}): Promise<ScoredChunk[]> {
+    await this.openTableIfExist();
+
     if (!this.table || queryEmbedding.length === 0) {
       return [];
     }
@@ -58,6 +62,7 @@ export class LanceDBVectorStore implements VectorStore {
   }
 
   async deleteByDocumentId(documentId: string): Promise<void> {
+    await this.openTableIfExist();
     if (!this.table) {
       return;
     }
@@ -66,6 +71,7 @@ export class LanceDBVectorStore implements VectorStore {
   }
 
   async clear(): Promise<void> {
+    await this.openTableIfExist();
     if (!this.table) {
       return;
     }
@@ -73,16 +79,24 @@ export class LanceDBVectorStore implements VectorStore {
     await this.table.delete("chunkId != ''");
   }
 
-  private async ensureTable(chunk: Chunk, embedding: number[]): Promise<lancedb.Table> {
+  private async openTableIfExist(): Promise<lancedb.Table | null> {
     if (this.table) {
       return this.table;
     }
 
     const tableNames = await this.db.tableNames();
-
     if (tableNames.includes(TABLE_NAME)) {
       this.table = await this.db.openTable(TABLE_NAME);
       return this.table;
+    }
+
+    return null;
+  }
+
+  private async ensureTable(chunk: Chunk, embedding: number[]): Promise<lancedb.Table> {
+    const existing = await this.openTableIfExist();
+    if (existing) {
+      return existing;
     }
 
     this.table = await this.db.createTable(TABLE_NAME, [this.toRecord(chunk, embedding)]);
