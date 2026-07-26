@@ -90,6 +90,51 @@ export class BlogController {
       next(error);
     }
   }
+
+  public async updateBlog(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const updated = blogService.updateBlog(String(id), req.body);
+
+      if (!updated) {
+        res.status(404).json({
+          success: false,
+          message: "Blog post not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Blog post updated successfully!",
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async deleteBlog(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const success = blogService.deleteBlog(String(id));
+
+      if (!success) {
+        res.status(404).json({
+          success: false,
+          message: "Blog post not found",
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Blog post deleted successfully!",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const blogController = new BlogController();

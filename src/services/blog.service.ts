@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { notificationService } from "./notification.service";
 
 export interface BlogPost {
@@ -11,7 +13,7 @@ export interface BlogPost {
   views: number;
   likes: number;
   pinned: boolean;
-  coverImage?: string; // Optional image URL or base64
+  coverImage?: string;
   author?: string;
 }
 
@@ -53,7 +55,7 @@ async def startup():
     views: 2341,
     likes: 42,
     pinned: true,
-    author: "Biniyam Belay",
+    author: "Biniyam Tesfu",
   },
   {
     id: "2",
@@ -80,7 +82,7 @@ When a side project goes viral overnight, infrastructure bottlenecks show up imm
     views: 4892,
     likes: 89,
     pinned: true,
-    author: "Biniyam Belay",
+    author: "Biniyam Tesfu",
   },
   {
     id: "3",
@@ -102,15 +104,48 @@ Micro-interactions transform a static user interface into an engaging, responsiv
     views: 1823,
     likes: 31,
     pinned: false,
-    author: "Biniyam Belay",
+    author: "Biniyam Tesfu",
   },
 ];
 
 export class BlogService {
   private blogs: Map<string, BlogPost> = new Map();
+  private filePath = path.join(__dirname, "../../data/blogs.json");
 
   constructor() {
+    this.loadFromFile();
+  }
+
+  private loadFromFile(): void {
+    try {
+      if (fs.existsSync(this.filePath)) {
+        const fileData = fs.readFileSync(this.filePath, "utf-8");
+        const parsedData: BlogPost[] = JSON.parse(fileData);
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          parsedData.forEach((b) => this.blogs.set(String(b.id), b));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Could not load blogs from file, fallback to initial defaults:", err);
+    }
+
+    // Initialize with default blogs & write to file
     INITIAL_BLOGS.forEach((b) => this.blogs.set(b.id, { ...b }));
+    this.saveToFile();
+  }
+
+  private saveToFile(): void {
+    try {
+      const dir = path.dirname(this.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      const arrayData = Array.from(this.blogs.values());
+      fs.writeFileSync(this.filePath, JSON.stringify(arrayData, null, 2), "utf-8");
+    } catch (err) {
+      console.error("Failed to persist blog data to disk:", err);
+    }
   }
 
   public getAllBlogs(): BlogPost[] {
@@ -124,7 +159,8 @@ export class BlogService {
   public getBlogById(id: string): BlogPost | null {
     const blog = this.blogs.get(String(id));
     if (blog) {
-      blog.views += 1; // Increment view count on read
+      blog.views += 1;
+      this.saveToFile();
     }
     return blog || null;
   }
@@ -149,11 +185,40 @@ export class BlogService {
       likes: 0,
       pinned: !!data.pinned,
       coverImage: data.coverImage || undefined,
-      author: data.author || "Biniyam Belay",
+      author: data.author || "Biniyam Tesfu",
     };
 
     this.blogs.set(id, newBlog);
+    this.saveToFile();
     return newBlog;
+  }
+
+  public updateBlog(id: string, data: Partial<BlogPost>): BlogPost | null {
+    const existing = this.blogs.get(String(id));
+    if (!existing) return null;
+
+    const updated: BlogPost = {
+      ...existing,
+      title: data.title !== undefined ? data.title : existing.title,
+      excerpt: data.excerpt !== undefined ? data.excerpt : existing.excerpt,
+      content: data.content !== undefined ? data.content : existing.content,
+      tags: Array.isArray(data.tags) && data.tags.length > 0 ? data.tags : existing.tags,
+      readTime: data.readTime || existing.readTime,
+      coverImage: data.coverImage !== undefined ? data.coverImage : existing.coverImage,
+      pinned: data.pinned !== undefined ? !!data.pinned : existing.pinned,
+    };
+
+    this.blogs.set(String(id), updated);
+    this.saveToFile();
+    return updated;
+  }
+
+  public deleteBlog(id: string): boolean {
+    const existed = this.blogs.delete(String(id));
+    if (existed) {
+      this.saveToFile();
+    }
+    return existed;
   }
 
   public async likeBlog(id: string): Promise<{ success: boolean; likes: number; blogTitle?: string }> {
@@ -163,6 +228,7 @@ export class BlogService {
     }
 
     blog.likes += 1;
+    this.saveToFile();
 
     // Send Telegram alert
     await notificationService.sendBlogLikeNotification(blog.title, blog.likes);
